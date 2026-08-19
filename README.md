@@ -20,14 +20,14 @@ Roll a number. Half the time it crashes back toward zero, half the time it could
 - Live leaderboard backed by **Firebase Realtime Database** — writes and reads happen instantly for every visitor, no page refresh needed.
 - Hosted on GitHub Pages.
 
-## Notable bug I hit (and fixed)
+## Known issue and fix
 
-Firebase security rules don't cascade `.read` permissions upward automatically. I had `.read: true` set only at the per-user path (`/leaderboard/$username`), which meant individual writes worked fine, but the app's listener on the whole `/leaderboard` node was silently getting `permission_denied`. Fixed by explicitly setting `.read: true` at the `leaderboard` parent level too.
+Firebase security rules do not cascade `.read` permissions upward automatically. `.read: true` was initially set only at the per-user path (`/leaderboard/$username`), so individual writes succeeded but the app's listener on the full `/leaderboard` node returned `permission_denied`. Resolved by setting `.read: true` at the `leaderboard` parent level as well.
 
 ## AI usage
 
-Built with help from Claude (Anthropic) for the frontend code, animations, and Firebase integration. I made the actual design calls — the 50/50 roll mechanic, the uncapped high-roll range, no artificial formula shaping the randomness — and debugged the Firebase permissions issue myself using the browser console and the Firebase Rules Playground.
+Frontend code, animations, and Firebase integration were built with assistance from Claude (Anthropic). Design decisions — the 50/50 roll mechanic, the uncapped high-roll range, and unweighted randomness with no formula shaping outcomes — were made by the project owner. The Firebase permissions issue was diagnosed and resolved using the browser console and the Firebase Rules Playground.
 
-## Run it locally
+## Run locally
 
-Just open `index.html` in a browser — no build step, no dependencies to install. You'll need your own Firebase project and `firebaseConfig` if you want a working leaderboard of your own.
+Open `index.html` directly in a browser — no build step or dependencies required. A separate Firebase project and `firebaseConfig` are needed for a working leaderboard.
