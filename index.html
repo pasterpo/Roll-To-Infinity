@@ -222,6 +222,8 @@
     font-size: 13px;
   }
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -271,51 +273,64 @@
   const COOLDOWN_MS = 1000;
 
   let username = null;
+  let userKey = null;
   let score = 0;
   let hasRolledOnce = false;
   let lastRollTime = 0;
   let cooldownTimer = null;
 
-  // ---------- storage helpers ----------
-  async function loadLeaderboard() {
-    try {
-      const res = await window.storage.get('leaderboard', true);
-      if (res && res.value) return JSON.parse(res.value);
-      return {};
-    } catch (e) {
-      return {};
-    }
+  // ---------- Firebase setup ----------
+  const firebaseConfig = {
+    apiKey: "AIzaSyCHe8hLsysRCoCXrtkDRE7OBnk0Zl5_Kbs",
+    authDomain: "roll-to-infinity-b8cf2.firebaseapp.com",
+    databaseURL: "https://roll-to-infinity-b8cf2-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "roll-to-infinity-b8cf2",
+    storageBucket: "roll-to-infinity-b8cf2.firebasestorage.app",
+    messagingSenderId: "828741072865",
+    appId: "1:828741072865:web:1657457e62667f028404a0"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const leaderboardRef = db.ref('leaderboard');
+
+  function sanitizeKey(name) {
+    // Firebase keys can't contain . # $ [ ] /
+    return name.replace(/[.#$\[\]\/]/g, '_');
   }
 
+  // ---------- storage helpers ----------
   async function saveScore(name, value) {
     try {
-      const board = await loadLeaderboard();
-      board[name] = value;
-      await window.storage.set('leaderboard', JSON.stringify(board), true);
+      // only the current score is kept — each write overwrites this user's previous entry
+      await leaderboardRef.child(userKey).set({ name: name, score: value });
     } catch (e) {
       console.error('Could not save score', e);
     }
   }
 
-  async function renderLeaderboard() {
-    const board = await loadLeaderboard();
-    const entries = Object.entries(board).sort((a, b) => b[1] - a[1]);
+  function renderLeaderboard(board) {
+    const entries = Object.values(board || {}).sort((a, b) => b.score - a.score);
 
     if (entries.length === 0) {
       boardList.innerHTML = '<div class="board-empty">No rolls yet. Be the first.</div>';
       return;
     }
 
-    boardList.innerHTML = entries.slice(0, 20).map(([name, val], i) => {
+    boardList.innerHTML = entries.slice(0, 20).map((entry, i) => {
       const rankClass = i === 0 ? 'rank gold' : 'rank';
-      const rowClass = name === username ? 'board-row me' : 'board-row';
+      const rowClass = entry.name === username ? 'board-row me' : 'board-row';
       return `<div class="${rowClass}">
         <div class="${rankClass}">${i + 1}</div>
-        <div class="name">${escapeHtml(name)}</div>
-        <div class="val">${formatNum(val)}</div>
+        <div class="name">${escapeHtml(entry.name)}</div>
+        <div class="val">${formatNum(entry.score)}</div>
       </div>`;
     }).join('');
   }
+
+  // live listener — updates instantly for every visitor whenever anyone rolls
+  leaderboardRef.on('value', (snapshot) => {
+    renderLeaderboard(snapshot.val());
+  });
 
   function escapeHtml(str) {
     const d = document.createElement('div');
@@ -399,7 +414,7 @@
       deltaTag.className = 'delta-tag show';
     }
 
-    saveScore(username, score).then(renderLeaderboard);
+    saveScore(username, score);
 
     startCooldownUI();
   }
@@ -428,10 +443,10 @@
   // ---------- init ----------
   function startGame(name) {
     username = name;
+    userKey = sanitizeKey(name);
     whoami.textContent = name;
     gate.style.display = 'none';
     game.classList.add('active');
-    renderLeaderboard();
   }
 
   startBtn.addEventListener('click', () => {
@@ -448,11 +463,6 @@
   });
 
   rollBtn.addEventListener('click', doRoll);
-
-  // periodic leaderboard refresh so multiple visitors see live updates
-  setInterval(() => {
-    if (username) renderLeaderboard();
-  }, 4000);
 })();
 </script>
 
