@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roll to Infinity</title>
+<style>
+  :root {
+    --bg: #0B0E14;
+    --bg-panel: #10141D;
+    --line: #1E2530;
+    --text: #F2EFE9;
+    --text-dim: #6B7280;
+    --up: #FFB84D;
+    --down: #E85D75;
+    --mono: 'Roboto Mono', 'SF Mono', Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(255,184,77,0.06), transparent 40%),
+      radial-gradient(circle at 80% 90%, rgba(232,93,117,0.06), transparent 40%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 60px;
+  }
+
+  .brand {
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 8px 0 40px;
+  }
+  .brand span { color: var(--text); }
+
+  /* ---------- Username gate ---------- */
+  .gate {
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    margin-top: 18vh;
+  }
+  .gate h1 {
+    font-size: 28px;
+    margin: 0 0 8px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .gate p {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin: 0 0 28px;
+    line-height: 1.5;
+  }
+  .gate input {
+    width: 100%;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 16px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    outline: none;
+    text-align: center;
+    font-family: inherit;
+  }
+  .gate input:focus { border-color: var(--up); }
+  .gate button {
+    margin-top: 14px;
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    background: var(--up);
+    color: #17120A;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .gate button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ---------- Game screen ---------- */
+  .game { display: none; width: 100%; max-width: 480px; flex-direction: column; align-items: center; }
+  .game.active { display: flex; }
+
+  .greeting {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .greeting b { color: var(--text); font-weight: 600; }
+
+  .score-frame {
+    width: 100%;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 40px 20px 32px;
+    margin: 18px 0 22px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .score-label {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+  .score-number {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(38px, 11vw, 64px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    transition: color 0.25s ease;
+    word-break: break-all;
+  }
+  .score-number.rolling { color: var(--text-dim); }
+  .score-number.up { color: var(--up); text-shadow: 0 0 24px rgba(255,184,77,0.35); }
+  .score-number.down { color: var(--down); text-shadow: 0 0 24px rgba(232,93,117,0.35); }
+
+  .delta-tag {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 13px;
+    font-family: var(--mono);
+    padding: 3px 10px;
+    border-radius: 999px;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .delta-tag.show { opacity: 1; transform: translateY(0); }
+  .delta-tag.up { background: rgba(255,184,77,0.12); color: var(--up); }
+  .delta-tag.down { background: rgba(232,93,117,0.12); color: var(--down); }
+
+  .roll-btn {
+    width: 100%;
+    padding: 18px;
+    border-radius: 14px;
+    border: none;
+    background: linear-gradient(135deg, var(--up), #ff9d3d);
+    color: #17120A;
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform 0.08s ease, opacity 0.2s ease;
+  }
+  .roll-btn:active:not(:disabled) { transform: scale(0.98); }
+  .roll-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .cooldown-hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 10px;
+    height: 14px;
+  }
+
+  /* ---------- Leaderboard ---------- */
+  .board {
+    width: 100%;
+    margin-top: 34px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .board-head {
+    padding: 16px 18px 12px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--line);
+  }
+  .board-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .board-row:last-child { border-bottom: none; }
+  .board-row.me { background: rgba(255,184,77,0.06); }
+  .rank {
+    width: 28px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .rank.gold { color: var(--up); font-weight: 700; }
+  .name { flex: 1; font-weight: 600; }
+  .val {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .board-empty {
+    padding: 24px 18px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="brand">ROLL TO <span>∞</span></div>
+
+  <!-- Username gate -->
+  <div class="gate" id="gate">
+    <h1>Roll to Infinity</h1>
+    <p>Every roll is a coin flip: half the time you crash toward zero, half the time you could rocket into the trillions. Pick a name and take your first roll.</p>
+    <input id="usernameInput" type="text" placeholder="Your name" maxlength="20" autocomplete="off">
+    <button id="startBtn">Start rolling</button>
+  </div>
+
+  <!-- Game -->
+  <div class="game" id="game">
+    <div class="greeting">Rolling as <b id="whoami"></b></div>
+
+    <div class="score-frame">
+      <div class="score-label">Current score</div>
+      <div class="score-number" id="scoreNumber">0</div>
+      <div class="delta-tag" id="deltaTag"></div>
+    </div>
+
+    <button class="roll-btn" id="rollBtn">Roll</button>
+    <div class="cooldown-hint" id="cooldownHint"></div>
+
+    <div class="board">
+      <div class="board-head">Leaderboard</div>
+      <div id="boardList"></div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const gate = document.getElementById('gate');
+  const game = document.getElementById('game');
+  const usernameInput = document.getElementById('usernameInput');
+  const startBtn = document.getElementById('startBtn');
+  const whoami = document.getElementById('whoami');
+  const scoreNumber = document.getElementById('scoreNumber');
+  const deltaTag = document.getElementById('deltaTag');
+  const rollBtn = document.getElementById('rollBtn');
+  const cooldownHint = document.getElementById('cooldownHint');
+  const boardList = document.getElementById('boardList');
+
+  const HIGH_CEILING = 1000000000000; // 1 trillion
+  const COOLDOWN_MS = 1000;
+
+  let username = null;
+  let score = 0;
+  let hasRolledOnce = false;
+  let lastRollTime = 0;
+  let cooldownTimer = null;
+
+  // ---------- storage helpers ----------
+  async function loadLeaderboard() {
+    try {
+      const res = await window.storage.get('leaderboard', true);
+      if (res && res.value) return JSON.parse(res.value);
+      return {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function saveScore(name, value) {
+    try {
+      const board = await loadLeaderboard();
+      board[name] = value;
+      await window.storage.set('leaderboard', JSON.stringify(board), true);
+    } catch (e) {
+      console.error('Could not save score', e);
+    }
+  }
+
+  async function renderLeaderboard() {
+    const board = await loadLeaderboard();
+    const entries = Object.entries(board).sort((a, b) => b[1] - a[1]);
+
+    if (entries.length === 0) {
+      boardList.innerHTML = '<div class="board-empty">No rolls yet. Be the first.</div>';
+      return;
+    }
+
+    boardList.innerHTML = entries.slice(0, 20).map(([name, val], i) => {
+      const rankClass = i === 0 ? 'rank gold' : 'rank';
+      const rowClass = name === username ? 'board-row me' : 'board-row';
+      return `<div class="${rowClass}">
+        <div class="${rankClass}">${i + 1}</div>
+        <div class="name">${escapeHtml(name)}</div>
+        <div class="val">${formatNum(val)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function formatNum(n) {
+    return n.toLocaleString('en-US');
+  }
+
+  // ---------- roll logic ----------
+  function randomInt(min, max) {
+    // inclusive random integer between min and max, pure Math.random based
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function doRoll() {
+    const now = Date.now();
+    if (now - lastRollTime < COOLDOWN_MS) return;
+    lastRollTime = now;
+
+    let newScore;
+    let direction;
+
+    if (!hasRolledOnce) {
+      // first roll: random starting point
+      newScore = randomInt(0, HIGH_CEILING);
+      direction = 'up';
+      hasRolledOnce = true;
+    } else {
+      const goLower = Math.random() < 0.5;
+      if (goLower) {
+        newScore = randomInt(0, score);
+        direction = newScore < score ? 'down' : (newScore > score ? 'up' : null);
+      } else {
+        newScore = randomInt(score + 1 > HIGH_CEILING ? HIGH_CEILING : score + 1, HIGH_CEILING);
+        direction = 'up';
+      }
+    }
+
+    animateRoll(newScore, direction);
+  }
+
+  function animateRoll(finalScore, direction) {
+    rollBtn.disabled = true;
+    scoreNumber.classList.add('rolling');
+    scoreNumber.classList.remove('up', 'down');
+    deltaTag.classList.remove('show');
+
+    const tumbleFrames = 10;
+    let frame = 0;
+    const tumbleInterval = setInterval(() => {
+      const fakeDigits = randomInt(0, HIGH_CEILING);
+      scoreNumber.textContent = formatNum(fakeDigits);
+      frame++;
+      if (frame >= tumbleFrames) {
+        clearInterval(tumbleInterval);
+        landRoll(finalScore, direction);
+      }
+    }, 45);
+  }
+
+  function landRoll(finalScore, direction) {
+    const prevScore = score;
+    score = finalScore;
+
+    scoreNumber.classList.remove('rolling');
+    scoreNumber.textContent = formatNum(score);
+
+    if (direction === 'up') {
+      scoreNumber.classList.add('up');
+      deltaTag.textContent = '▲ ' + (hasRolledOnceLabel(prevScore, score));
+      deltaTag.className = 'delta-tag up show';
+    } else if (direction === 'down') {
+      scoreNumber.classList.add('down');
+      deltaTag.textContent = '▼ ' + (hasRolledOnceLabel(prevScore, score));
+      deltaTag.className = 'delta-tag down show';
+    } else {
+      deltaTag.textContent = 'no change';
+      deltaTag.className = 'delta-tag show';
+    }
+
+    saveScore(username, score).then(renderLeaderboard);
+
+    startCooldownUI();
+  }
+
+  function hasRolledOnceLabel(prev, curr) {
+    const diff = Math.abs(curr - prev);
+    return formatNum(diff);
+  }
+
+  function startCooldownUI() {
+    let remaining = COOLDOWN_MS;
+    rollBtn.disabled = true;
+    if (cooldownTimer) clearInterval(cooldownTimer);
+    cooldownTimer = setInterval(() => {
+      remaining -= 100;
+      if (remaining <= 0) {
+        clearInterval(cooldownTimer);
+        cooldownHint.textContent = '';
+        rollBtn.disabled = false;
+      } else {
+        cooldownHint.textContent = 'next roll in ' + (remaining / 1000).toFixed(1) + 's';
+      }
+    }, 100);
+  }
+
+  // ---------- init ----------
+  function startGame(name) {
+    username = name;
+    whoami.textContent = name;
+    gate.style.display = 'none';
+    game.classList.add('active');
+    renderLeaderboard();
+  }
+
+  startBtn.addEventListener('click', () => {
+    const name = usernameInput.value.trim();
+    if (!name) {
+      usernameInput.focus();
+      return;
+    }
+    startGame(name);
+  });
+
+  usernameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') startBtn.click();
+  });
+
+  rollBtn.addEventListener('click', doRoll);
+
+  // periodic leaderboard refresh so multiple visitors see live updates
+  setInterval(() => {
+    if (username) renderLeaderboard();
+  }, 4000);
+})();
+</script>
+
+</body>
+</html>
