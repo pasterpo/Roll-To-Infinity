@@ -1,7 +1,7 @@
 # Roll to Infinity
 
 Roll a number. Half the time it crashes back toward zero, half the time it could rocket into the trillions. No skill, no strategy — just pure chaos and a live leaderboard.
-
+ 
 **[Play it here](https://pasterpo.github.io/Roll-To-Infinity/)**
 
 ## How it works
