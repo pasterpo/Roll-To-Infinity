@@ -234,6 +234,8 @@
     <h1>Roll to Infinity</h1>
     <p>Every roll is a coin flip: half the time you crash toward zero, half the time you could rocket into the trillions. Pick a name and take your first roll.</p>
     <input id="usernameInput" type="text" placeholder="Your name" maxlength="20" autocomplete="off">
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="4-digit PIN" maxlength="4" autocomplete="off" style="margin-top:10px;">
+    <div id="gateError" style="color:var(--down); font-size:13px; margin-top:8px; min-height:16px;"></div>
     <button id="startBtn">Start rolling</button>
   </div>
 
@@ -261,6 +263,8 @@
   const gate = document.getElementById('gate');
   const game = document.getElementById('game');
   const usernameInput = document.getElementById('usernameInput');
+  const pinInput = document.getElementById('pinInput');
+  const gateError = document.getElementById('gateError');
   const startBtn = document.getElementById('startBtn');
   const whoami = document.getElementById('whoami');
   const scoreNumber = document.getElementById('scoreNumber');
@@ -299,10 +303,23 @@
   }
 
   // ---------- storage helpers ----------
+  async function getEntry(key) {
+    try {
+      const snap = await leaderboardRef.child(key).once('value');
+      return snap.val();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function createEntry(key, name, pin) {
+    await leaderboardRef.child(key).set({ name: name, score: 0, pin: pin });
+  }
+
   async function saveScore(name, value) {
     try {
-      // only the current score is kept — each write overwrites this user's previous entry
-      await leaderboardRef.child(userKey).set({ name: name, score: value });
+      // only the current score is kept — each write overwrites this user's previous score, pin stays untouched
+      await leaderboardRef.child(userKey).update({ name: name, score: value });
     } catch (e) {
       console.error('Could not save score', e);
     }
@@ -310,6 +327,7 @@
 
   function renderLeaderboard(board) {
     const entries = Object.values(board || {}).sort((a, b) => b.score - a.score);
+    // note: entries may include a 'pin' field internally, never rendered below
 
     if (entries.length === 0) {
       boardList.innerHTML = '<div class="board-empty">No rolls yet. Be the first.</div>';
@@ -440,25 +458,61 @@
     }, 100);
   }
 
-  // ----------- init -----------
-  function startGame(name) {
+  function isValidPin(pin) {
+    return /^[0-9]{4}$/.test(pin);
+  }
+
+  async function startGame(name, pin) {
+    const key = sanitizeKey(name);
+    const existing = await getEntry(key);
+
+    if (existing) {
+      if (existing.pin !== pin) {
+        gateError.textContent = 'Wrong PIN for that name. Try again.';
+        return;
+      }
+      // returning user — restore their real score, don't reset to 0
+      score = existing.score || 0;
+      hasRolledOnce = true;
+    } else {
+      await createEntry(key, name, pin);
+      score = 0;
+      hasRolledOnce = false;
+    }
+
     username = name;
-    userKey = sanitizeKey(name);
+    userKey = key;
     whoami.textContent = name;
+    scoreNumber.textContent = formatNum(score);
     gate.style.display = 'none';
     game.classList.add('active');
   }
 
-  startBtn.addEventListener('click', () => {
+  startBtn.addEventListener('click', async () => {
     const name = usernameInput.value.trim();
+    const pin = pinInput.value.trim();
+    gateError.textContent = '';
+
     if (!name) {
+      gateError.textContent = 'Enter a name.';
       usernameInput.focus();
       return;
     }
-    startGame(name);
+    if (!isValidPin(pin)) {
+      gateError.textContent = 'PIN must be exactly 4 digits.';
+      pinInput.focus();
+      return;
+    }
+
+    startBtn.disabled = true;
+    await startGame(name, pin);
+    startBtn.disabled = false;
   });
 
   usernameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') pinInput.focus();
+  });
+  pinInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') startBtn.click();
   });
 
