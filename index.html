@@ -381,6 +381,7 @@
 
   function animateRoll(finalScore, direction) {
     rollButton.disabled = true;
+    rollButton.textContent = 'Rolling...';
     scoreDisplay.classList.add('rolling');
     scoreDisplay.classList.remove('up', 'down');
     changeDisplay.classList.remove('show');
@@ -423,12 +424,13 @@
 
   function formatChange(prev, curr) {
     const diff = Math.abs(curr - prev);
-    return formatNum(diff);
+    return formatNumber(diff);
   }
 
   function startCooldownUI() {
     let remaining = ROLL_DELAY;
     rollButton.disabled = true;
+    rollButton.textContent = 'Wait...';
     if (cooldownTimer) clearInterval(cooldownTimer);
     cooldownTimer = setInterval(() => {
       remaining -= 100;
@@ -436,6 +438,7 @@
         clearInterval(cooldownTimer);
         cooldownMessage.textContent = '';
         rollButton.disabled = false;
+        rollButton.textContent = 'Roll';
       } else {
         cooldownMessage.textContent = 'next roll in ' + (remaining / 1000).toFixed(1) + 's';
       }
