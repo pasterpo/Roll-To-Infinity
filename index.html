@@ -46,7 +46,6 @@
   }
   .brand span { color: var(--text); }
 
-  /* Sign-in screen */
   .gate {
     width: 100%;
     max-width: 380px;
@@ -93,7 +92,6 @@
   }
   .gate button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Game screen */
   .game { display: none; width: 100%; max-width: 480px; flex-direction: column; align-items: center; }
   .game.active { display: flex; }
 
@@ -175,7 +173,6 @@
     height: 14px;
   }
 
-  /* Leaderboard */
   .board {
     width: 100%;
     margin-top: 34px;
@@ -229,7 +226,6 @@
 
   <div class="brand">ROLL TO <span>∞</span></div>
 
-  <!-- Sign in before joining the board. -->
   <div class="gate" id="gate">
     <h1>Roll to Infinity</h1>
     <p>Each roll can send your score down to earth or way past a billion. Choose a name, enter a PIN, and see where luck takes you.</p>
@@ -239,7 +235,6 @@
     <button id="startBtn">Start rolling</button>
   </div>
 
-  <!-- The game appears after the player signs in. -->
   <div class="game" id="game">
     <div class="greeting">Rolling as <b id="whoami"></b></div>
 
@@ -260,30 +255,29 @@
 
 <script>
 (function () {
-  const gate = document.getElementById('gate');
-  const game = document.getElementById('game');
+  const signInPanel = document.getElementById('gate');
+  const gameScreen = document.getElementById('game');
   const usernameInput = document.getElementById('usernameInput');
   const pinInput = document.getElementById('pinInput');
   const gateError = document.getElementById('gateError');
   const startBtn = document.getElementById('startBtn');
-  const whoami = document.getElementById('whoami');
-  const scoreNumber = document.getElementById('scoreNumber');
-  const deltaTag = document.getElementById('deltaTag');
-  const rollBtn = document.getElementById('rollBtn');
-  const cooldownHint = document.getElementById('cooldownHint');
-  const boardList = document.getElementById('boardList');
+  const playerName = document.getElementById('whoami');
+  const scoreDisplay = document.getElementById('scoreNumber');
+  const changeDisplay = document.getElementById('deltaTag');
+  const rollButton = document.getElementById('rollBtn');
+  const cooldownMessage = document.getElementById('cooldownHint');
+  const leaderboardList = document.getElementById('boardList');
 
-  const HIGH_CEILING = 1000000000000; // 1 trillion
-  const COOLDOWN_MS = 1000;
+  const SCORE_LIMIT = 1000000000000;
+  const ROLL_DELAY = 1000;
 
   let username = null;
   let userKey = null;
   let score = 0;
-  let hasRolledOnce = false;
-  let lastRollTime = 0;
+  let hasStartedRolling = false;
+  let lastRollAt = 0;
   let cooldownTimer = null;
 
-  // Firebase holds the shared leaderboard.
   const firebaseConfig = {
     apiKey: "AIzaSyCHe8hLsysRCoCXrtkDRE7OBnk0Zl5_Kbs",
     authDomain: "roll-to-infinity-b8cf2.firebaseapp.com",
@@ -294,94 +288,90 @@
     appId: "1:828741072865:web:1657457e62667f028404a0"
   };
   firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-  const leaderboardRef = db.ref('leaderboard');
+  const database = firebase.database();
+  const leaderboard = database.ref('leaderboard');
 
-  function sanitizeKey(name) {
-    // Replace characters Firebase does not allow in a key.
+  function makeFirebaseKey(name) {
     return name.replace(/[.#$\[\]\/]/g, '_');
   }
 
-  async function getEntry(key) {
+  async function findPlayer(key) {
     try {
-      const snap = await leaderboardRef.child(key).once('value');
-      return snap.val();
-    } catch (e) {
+      const snapshot = await leaderboard.child(key).once('value');
+      return snapshot.val();
+    } catch (error) {
       return null;
     }
   }
 
-  async function createEntry(key, name, pin) {
-    await leaderboardRef.child(key).set({ name: name, score: 0, pin: pin });
+  async function addPlayer(key, name, pin) {
+    await leaderboard.child(key).set({ name, score: 0, pin });
   }
 
   async function saveScore(name, value) {
     try {
-      // Keep the latest score and leave the PIN alone.
-      await leaderboardRef.child(userKey).update({ name: name, score: value });
-    } catch (e) {
-      console.error('Could not save score', e);
+      await leaderboard.child(userKey).update({ name, score: value });
+    } catch (error) {
+      console.error('Could not save score:', error);
     }
   }
 
-  function renderLeaderboard(board) {
-    const entries = Object.values(board || {}).sort((a, b) => b.score - a.score);
+  function renderLeaderboard(players) {
+    const entries = Object.values(players || {}).sort((first, second) => second.score - first.score);
     if (entries.length === 0) {
-      boardList.innerHTML = '<div class="board-empty">No scores yet. Be the first to roll.</div>';
+      leaderboardList.innerHTML = '<div class="board-empty">No scores yet. Be the first to roll.</div>';
       return;
     }
 
-    boardList.innerHTML = entries.slice(0, 20).map((entry, i) => {
-      const rankClass = i === 0 ? 'rank gold' : 'rank';
-      const rowClass = entry.name === username ? 'board-row me' : 'board-row';
+    leaderboardList.innerHTML = entries.slice(0, 20).map((player, index) => {
+      const rankClass = index === 0 ? 'rank gold' : 'rank';
+      const rowClass = player.name === username ? 'board-row me' : 'board-row';
       return `<div class="${rowClass}">
-        <div class="${rankClass}">${i + 1}</div>
-        <div class="name">${escapeHtml(entry.name)}</div>
-        <div class="val">${formatNum(entry.score)}</div>
+        <div class="${rankClass}">${index + 1}</div>
+        <div class="name">${escapeHtml(player.name)}</div>
+        <div class="val">${formatNumber(player.score)}</div>
       </div>`;
     }).join('');
   }
 
-  // Everyone sees the board refresh as scores change.
-  leaderboardRef.on('value', (snapshot) => {
+  leaderboard.on('value', (snapshot) => {
     renderLeaderboard(snapshot.val());
   });
 
-  function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
+  function escapeHtml(value) {
+    const element = document.createElement('div');
+    element.textContent = value;
+    return element.innerHTML;
   }
 
-  function formatNum(n) {
-    return n.toLocaleString('en-US');
+  function formatNumber(value) {
+    return value.toLocaleString('en-US');
   }
 
-  function randomInt(min, max) {
-    // Math.random gives us an integer in the inclusive range.
+  function randomInteger(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  function doRoll() {
+  function roll() {
     const now = Date.now();
-    if (now - lastRollTime < COOLDOWN_MS) return;
-    lastRollTime = now;
+    if (now - lastRollAt < ROLL_DELAY) return;
+    lastRollAt = now;
 
     let newScore;
     let direction;
 
-    if (!hasRolledOnce) {
-      // The first roll starts somewhere between zero and the ceiling.
-      newScore = randomInt(0, HIGH_CEILING);
+    if (!hasStartedRolling) {
+      newScore = randomInteger(0, SCORE_LIMIT);
       direction = 'up';
-      hasRolledOnce = true;
+      hasStartedRolling = true;
     } else {
       const goLower = Math.random() < 0.5;
       if (goLower) {
-        newScore = randomInt(0, score);
+        newScore = randomInteger(0, score);
         direction = newScore < score ? 'down' : (newScore > score ? 'up' : null);
       } else {
-        newScore = randomInt(score + 1 > HIGH_CEILING ? HIGH_CEILING : score + 1, HIGH_CEILING);
+        const nextMinimum = Math.min(score + 1, SCORE_LIMIT);
+        newScore = randomInteger(nextMinimum, SCORE_LIMIT);
         direction = 'up';
       }
     }
@@ -390,19 +380,17 @@
   }
 
   function animateRoll(finalScore, direction) {
-    rollBtn.disabled = true;
-    scoreNumber.classList.add('rolling');
-    scoreNumber.classList.remove('up', 'down');
-    deltaTag.classList.remove('show');
+    rollButton.disabled = true;
+    scoreDisplay.classList.add('rolling');
+    scoreDisplay.classList.remove('up', 'down');
+    changeDisplay.classList.remove('show');
 
-    const tumbleFrames = 10;
     let frame = 0;
-    const tumbleInterval = setInterval(() => {
-      const fakeDigits = randomInt(0, HIGH_CEILING);
-      scoreNumber.textContent = formatNum(fakeDigits);
-      frame++;
-      if (frame >= tumbleFrames) {
-        clearInterval(tumbleInterval);
+    const animation = setInterval(() => {
+      scoreDisplay.textContent = formatNumber(randomInteger(0, SCORE_LIMIT));
+      frame += 1;
+      if (frame >= 10) {
+        clearInterval(animation);
         landRoll(finalScore, direction);
       }
     }, 45);
@@ -412,20 +400,20 @@
     const prevScore = score;
     score = finalScore;
 
-    scoreNumber.classList.remove('rolling');
-    scoreNumber.textContent = formatNum(score);
+    scoreDisplay.classList.remove('rolling');
+    scoreDisplay.textContent = formatNumber(score);
 
     if (direction === 'up') {
-      scoreNumber.classList.add('up');
-      deltaTag.textContent = '▲ ' + formatChange(prevScore, score);
-      deltaTag.className = 'delta-tag up show';
+      scoreDisplay.classList.add('up');
+      changeDisplay.textContent = '▲ ' + formatChange(prevScore, score);
+      changeDisplay.className = 'delta-tag up show';
     } else if (direction === 'down') {
-      scoreNumber.classList.add('down');
-      deltaTag.textContent = '▼ ' + formatChange(prevScore, score);
-      deltaTag.className = 'delta-tag down show';
+      scoreDisplay.classList.add('down');
+      changeDisplay.textContent = '▼ ' + formatChange(prevScore, score);
+      changeDisplay.className = 'delta-tag down show';
     } else {
-      deltaTag.textContent = 'no change';
-      deltaTag.className = 'delta-tag show';
+      changeDisplay.textContent = 'no change';
+      changeDisplay.className = 'delta-tag show';
     }
 
     saveScore(username, score);
@@ -439,17 +427,17 @@
   }
 
   function startCooldownUI() {
-    let remaining = COOLDOWN_MS;
-    rollBtn.disabled = true;
+    let remaining = ROLL_DELAY;
+    rollButton.disabled = true;
     if (cooldownTimer) clearInterval(cooldownTimer);
     cooldownTimer = setInterval(() => {
       remaining -= 100;
       if (remaining <= 0) {
         clearInterval(cooldownTimer);
-        cooldownHint.textContent = '';
-        rollBtn.disabled = false;
+        cooldownMessage.textContent = '';
+        rollButton.disabled = false;
       } else {
-        cooldownHint.textContent = 'next roll in ' + (remaining / 1000).toFixed(1) + 's';
+        cooldownMessage.textContent = 'next roll in ' + (remaining / 1000).toFixed(1) + 's';
       }
     }, 100);
   }
@@ -459,29 +447,28 @@
   }
 
   async function startGame(name, pin) {
-    const key = sanitizeKey(name);
-    const existing = await getEntry(key);
+    const key = makeFirebaseKey(name);
+    const existing = await findPlayer(key);
 
     if (existing) {
       if (existing.pin !== pin) {
         gateError.textContent = 'Wrong PIN for that name. Try again.';
         return;
       }
-      // Returning players pick up where they left off.
       score = existing.score || 0;
-      hasRolledOnce = true;
+      hasStartedRolling = true;
     } else {
-      await createEntry(key, name, pin);
+      await addPlayer(key, name, pin);
       score = 0;
-      hasRolledOnce = false;
+      hasStartedRolling = false;
     }
 
     username = name;
     userKey = key;
-    whoami.textContent = name;
-    scoreNumber.textContent = formatNum(score);
-    gate.style.display = 'none';
-    game.classList.add('active');
+    playerName.textContent = name;
+    scoreDisplay.textContent = formatNumber(score);
+    signInPanel.style.display = 'none';
+    gameScreen.classList.add('active');
   }
 
   startBtn.addEventListener('click', async () => {
@@ -512,7 +499,7 @@
     if (e.key === 'Enter') startBtn.click();
   });
 
-  rollBtn.addEventListener('click', doRoll);
+  rollButton.addEventListener('click', roll);
 })();
 </script>
 
