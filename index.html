@@ -46,7 +46,7 @@
   }
   .brand span { color: var(--text); }
 
-  /* ---------- Username gate ---------- */
+  /* Sign-in screen */
   .gate {
     width: 100%;
     max-width: 380px;
@@ -93,7 +93,7 @@
   }
   .gate button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* ---------- Game screen ---------- */
+  /* Game screen */
   .game { display: none; width: 100%; max-width: 480px; flex-direction: column; align-items: center; }
   .game.active { display: flex; }
 
@@ -175,7 +175,7 @@
     height: 14px;
   }
 
-  /* ---------- Leaderboard ---------- */
+  /* Leaderboard */
   .board {
     width: 100%;
     margin-top: 34px;
@@ -229,22 +229,22 @@
 
   <div class="brand">ROLL TO <span>∞</span></div>
 
-  <!-- Username gate -->
+  <!-- Sign in before joining the board. -->
   <div class="gate" id="gate">
     <h1>Roll to Infinity</h1>
-    <p>Every roll is a coin flip: half the time you crash toward zero, half the time you could rocket into the trillions. Pick a name and take your first roll.</p>
+    <p>Each roll can send your score down to earth or way past a billion. Choose a name, enter a PIN, and see where luck takes you.</p>
     <input id="usernameInput" type="text" placeholder="Your name" maxlength="20" autocomplete="off">
     <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="4-digit PIN" maxlength="4" autocomplete="off" style="margin-top:10px;">
     <div id="gateError" style="color:var(--down); font-size:13px; margin-top:8px; min-height:16px;"></div>
     <button id="startBtn">Start rolling</button>
   </div>
 
-  <!-- Game -->
+  <!-- The game appears after the player signs in. -->
   <div class="game" id="game">
     <div class="greeting">Rolling as <b id="whoami"></b></div>
 
     <div class="score-frame">
-      <div class="score-label">Current score</div>
+      <div class="score-label">Your score</div>
       <div class="score-number" id="scoreNumber">0</div>
       <div class="delta-tag" id="deltaTag"></div>
     </div>
@@ -283,7 +283,7 @@
   let lastRollTime = 0;
   let cooldownTimer = null;
 
-  // ---------- Firebase setup ----------
+  // Firebase holds the shared leaderboard.
   const firebaseConfig = {
     apiKey: "AIzaSyCHe8hLsysRCoCXrtkDRE7OBnk0Zl5_Kbs",
     authDomain: "roll-to-infinity-b8cf2.firebaseapp.com",
@@ -298,11 +298,10 @@
   const leaderboardRef = db.ref('leaderboard');
 
   function sanitizeKey(name) {
-    // Firebase keys can't contain . # $ [ ] /
+    // Replace characters Firebase does not allow in a key.
     return name.replace(/[.#$\[\]\/]/g, '_');
   }
 
-  // ---------- storage helpers ----------
   async function getEntry(key) {
     try {
       const snap = await leaderboardRef.child(key).once('value');
@@ -318,7 +317,7 @@
 
   async function saveScore(name, value) {
     try {
-      // only the current score is kept — each write overwrites this user's previous score, pin stays untouched
+      // Keep the latest score and leave the PIN alone.
       await leaderboardRef.child(userKey).update({ name: name, score: value });
     } catch (e) {
       console.error('Could not save score', e);
@@ -327,10 +326,8 @@
 
   function renderLeaderboard(board) {
     const entries = Object.values(board || {}).sort((a, b) => b.score - a.score);
-    // note: entries may include a 'pin' field internally, never rendered below
-
     if (entries.length === 0) {
-      boardList.innerHTML = '<div class="board-empty">No rolls yet. Be the first.</div>';
+      boardList.innerHTML = '<div class="board-empty">No scores yet. Be the first to roll.</div>';
       return;
     }
 
@@ -345,7 +342,7 @@
     }).join('');
   }
 
-  // live listener — updates instantly for every visitor whenever anyone rolls
+  // Everyone sees the board refresh as scores change.
   leaderboardRef.on('value', (snapshot) => {
     renderLeaderboard(snapshot.val());
   });
@@ -360,9 +357,8 @@
     return n.toLocaleString('en-US');
   }
 
-  // ---------- roll logic ----------
   function randomInt(min, max) {
-    // inclusive random integer between min and max, pure Math.random based
+    // Math.random gives us an integer in the inclusive range.
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
@@ -375,7 +371,7 @@
     let direction;
 
     if (!hasRolledOnce) {
-      // first roll: random starting point
+      // The first roll starts somewhere between zero and the ceiling.
       newScore = randomInt(0, HIGH_CEILING);
       direction = 'up';
       hasRolledOnce = true;
@@ -421,11 +417,11 @@
 
     if (direction === 'up') {
       scoreNumber.classList.add('up');
-      deltaTag.textContent = '▲ ' + (hasRolledOnceLabel(prevScore, score));
+      deltaTag.textContent = '▲ ' + formatChange(prevScore, score);
       deltaTag.className = 'delta-tag up show';
     } else if (direction === 'down') {
       scoreNumber.classList.add('down');
-      deltaTag.textContent = '▼ ' + (hasRolledOnceLabel(prevScore, score));
+      deltaTag.textContent = '▼ ' + formatChange(prevScore, score);
       deltaTag.className = 'delta-tag down show';
     } else {
       deltaTag.textContent = 'no change';
@@ -437,7 +433,7 @@
     startCooldownUI();
   }
 
-  function hasRolledOnceLabel(prev, curr) {
+  function formatChange(prev, curr) {
     const diff = Math.abs(curr - prev);
     return formatNum(diff);
   }
@@ -471,7 +467,7 @@
         gateError.textContent = 'Wrong PIN for that name. Try again.';
         return;
       }
-      // returning user — restore their real score, don't reset to 0
+      // Returning players pick up where they left off.
       score = existing.score || 0;
       hasRolledOnce = true;
     } else {
