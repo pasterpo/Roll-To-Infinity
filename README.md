@@ -1,25 +1,31 @@
 # Roll to Infinity
 
-Roll the dice on your score. It might tumble toward zero, or it might shoot into the trillions. There is no strategy here, just luck and a live leaderboard.
+This is a really simple game where you roll for a score and hope it gets huge. Sometimes your score goes down a lot, and sometimes it suddenly jumps way higher. It is mostly luck, so there is no secret strategy to figure out.
 
-**[Play Roll to Infinity](https://pasterpo.github.io/Roll-To-Infinity/)**
+[Play the game](https://pasterpo.github.io/Roll-To-Infinity/)
 
-## How it works
+## How to play
 
-- Choose a name and a four-digit PIN, then press **Start rolling**.
-- Every roll is a coin flip:
-  - **50% chance — lower:** score drops to a random number between 0 and the current score.
-  - **50% chance — higher:** the score jumps to a random number between the current score and 1,000,000,000,000 (one trillion).
-- Score can never go below 0.
-- One roll per second.
-- Current score updates live on a shared leaderboard visible to everyone playing. Only current scores are kept — no history.
+1. Type in a name and make a 4-digit PIN.
+2. Click **Start rolling**.
+3. Press **Roll** and see what number you get.
+4. Try to get higher than everyone else on the leaderboard.
 
-## Tech
+Each roll has two possible outcomes:
 
-- Single-file static frontend: HTML, CSS, vanilla JS. No framework, no build step.
-- Live leaderboard backed by Firebase Realtime Database.
-- Hosted on GitHub Pages.
+- Half the time, your score becomes a random number between 0 and your current score.
+- The other half, it becomes a random number between your current score and 1 trillion.
 
-## Run locally
+You can roll once every second. Your score cannot go below zero, and the leaderboard updates for everyone while they are playing. The game only saves your latest score, not a history of every roll.
 
-Open `index.html` directly in a browser. The included Firebase project powers the shared leaderboard; use your own Firebase config if you deploy a separate copy.
+## What it uses
+
+- HTML, CSS, and regular JavaScript
+- Firebase Realtime Database for the leaderboard
+- GitHub Pages for hosting
+
+There is no framework or build step. The whole game is in `index.html`.
+
+## Run it yourself
+
+Download the project and open `index.html` in a browser. The leaderboard uses the Firebase project in the code. If you make your own copy and want your own leaderboard, replace the Firebase config with one from your own project.
