@@ -5,18 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Roll to Infinity</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap');
-
   :root {
-    --bg: #f4efe7;
-    --bg-panel: #fffdf8;
-    --line: #ded6ca;
-    --text: #1d2730;
-    --text-dim: #7c817e;
-    --up: #e86b4d;
-    --down: #277c78;
-    --ink-soft: #eef2ed;
-    --mono: 'DM Mono', 'SF Mono', Consolas, monospace;
+    --bg: #f5f5f5;
+    --bg-panel: #ffffff;
+    --line: #dddddd;
+    --text: #222222;
+    --text-dim: #777777;
+    --up: #e66b2f;
+    --down: #277a78;
+    --ink-soft: #f1f6f4;
+    --mono: Consolas, 'Courier New', monospace;
   }
 
   * { box-sizing: border-box; }
@@ -29,54 +27,44 @@
     margin: 0;
     min-height: 100vh;
     background: var(--bg);
-    background-image:
-      linear-gradient(rgba(29,39,48,0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(29,39,48,0.025) 1px, transparent 1px),
-      radial-gradient(circle at 12% 18%, rgba(232,107,77,0.12), transparent 28%),
-      radial-gradient(circle at 90% 78%, rgba(39,124,120,0.11), transparent 30%);
-    background-size: 28px 28px, 28px 28px, auto, auto;
     color: var(--text);
-    font-family: 'Manrope', 'Trebuchet MS', sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 30px 16px 60px;
+    padding: 24px 16px 60px;
   }
 
   .brand {
     font-size: 12px;
-    letter-spacing: 0.18em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--text);
-    margin: 2px 0 40px;
-    font-weight: 800;
+    color: var(--text-dim);
+    margin: 8px 0 40px;
   }
-  .brand span { color: var(--up); font-size: 18px; vertical-align: -1px; }
+  .brand span { color: var(--text); }
 
   .gate {
     width: 100%;
     max-width: 380px;
     text-align: center;
-    margin-top: 13vh;
-    animation: arrive 0.6s ease both;
+    margin-top: 18vh;
   }
   .gate h1 {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: clamp(38px, 10vw, 56px);
+    font-size: 28px;
     margin: 0 0 8px;
     font-weight: 700;
     letter-spacing: 0;
-    line-height: 0.98;
   }
   .gate p {
-    color: #68716e;
-    font-size: 15px;
+    color: var(--text-dim);
+    font-size: 14px;
     margin: 0 0 28px;
-    line-height: 1.65;
+    line-height: 1.5;
   }
   .gate input {
     width: 100%;
-    background: rgba(255,253,248,0.8);
+    background: var(--bg-panel);
     border: 1px solid var(--line);
     color: var(--text);
     font-size: 16px;
@@ -85,32 +73,30 @@
     outline: none;
     text-align: center;
     font-family: inherit;
-    box-shadow: 0 2px 0 rgba(29,39,48,0.04);
   }
-  .gate input:focus { border-color: var(--up); box-shadow: 0 0 0 3px rgba(232,107,77,0.14); }
+  .gate input:focus { border-color: var(--up); }
   .gate button {
     margin-top: 14px;
     width: 100%;
     padding: 14px;
     border-radius: 6px;
     border: none;
-    background: var(--text);
-    color: #fffdf8;
+    background: var(--up);
+    color: #ffffff;
     font-weight: 700;
     font-size: 15px;
     cursor: pointer;
     font-family: inherit;
-    transition: transform 0.15s ease, background 0.15s ease;
   }
-  .gate button:hover:not(:disabled) { background: var(--up); transform: translateY(-2px); }
+  .gate button:hover:not(:disabled) { opacity: 0.9; }
   .gate button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .game { display: none; width: 100%; max-width: 480px; flex-direction: column; align-items: center; animation: arrive 0.6s ease both; }
+  .game { display: none; width: 100%; max-width: 480px; flex-direction: column; align-items: center; }
   .game.active { display: flex; }
 
   .greeting {
     font-size: 13px;
-    color: #68716e;
+    color: var(--text-dim);
     margin-bottom: 4px;
   }
   .greeting b { color: var(--text); font-weight: 600; }
@@ -119,8 +105,8 @@
     width: 100%;
     background: var(--bg-panel);
     border: 1px solid var(--line);
-    border-radius: 6px 24px 6px 24px;
-    padding: 42px 20px 34px;
+    border-radius: 8px;
+    padding: 36px 20px 30px;
     margin: 18px 0 22px;
     text-align: center;
     position: relative;
@@ -144,8 +130,8 @@
     word-break: break-all;
   }
   .score-number.rolling { color: var(--text-dim); }
-  .score-number.up { color: var(--up); text-shadow: 0 0 24px rgba(232,107,77,0.22); }
-  .score-number.down { color: var(--down); text-shadow: 0 0 24px rgba(39,124,120,0.24); }
+  .score-number.up { color: var(--up); }
+  .score-number.down { color: var(--down); }
 
   .delta-tag {
     display: inline-block;
@@ -159,8 +145,8 @@
     transition: opacity 0.2s ease, transform 0.2s ease;
   }
   .delta-tag.show { opacity: 1; transform: translateY(0); }
-  .delta-tag.up { background: rgba(232,107,77,0.12); color: var(--up); }
-  .delta-tag.down { background: rgba(39,124,120,0.12); color: var(--down); }
+  .delta-tag.up { background: #fff0e9; color: var(--up); }
+  .delta-tag.down { background: #e9f4f2; color: var(--down); }
 
   .roll-btn {
     width: 100%;
@@ -168,15 +154,14 @@
     border-radius: 6px;
     border: none;
     background: var(--up);
-    color: #fffdf8;
+    color: #ffffff;
     font-weight: 800;
     font-size: 17px;
     letter-spacing: 0.02em;
     cursor: pointer;
     font-family: inherit;
-    transition: transform 0.12s ease, opacity 0.2s ease, background 0.12s ease;
   }
-  .roll-btn:hover:not(:disabled) { background: #d9573c; transform: translateY(-2px); }
+  .roll-btn:hover:not(:disabled) { opacity: 0.9; }
   .roll-btn:active:not(:disabled) { transform: scale(0.98); }
   .roll-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
@@ -190,9 +175,9 @@
   .board {
     width: 100%;
     margin-top: 34px;
-    background: rgba(255,253,248,0.82);
+    background: var(--bg-panel);
     border: 1px solid var(--line);
-    border-radius: 6px 6px 20px 6px;
+    border-radius: 8px;
     overflow: hidden;
   }
   .board-head {
@@ -233,10 +218,6 @@
     font-size: 13px;
   }
 
-  @keyframes arrive {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
