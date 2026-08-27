@@ -221,7 +221,6 @@
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
@@ -230,9 +229,8 @@
 
   <div class="gate" id="gate">
     <h1>Roll to Infinity</h1>
-    <p>Each roll can send your score down to earth or way past a billion. Choose a name, enter a PIN, and see where luck takes you.</p>
+    <p>Each roll can send your score down to earth or way past a billion. Choose a name and see where luck takes you.</p>
     <input id="usernameInput" type="text" placeholder="Your name" maxlength="20" autocomplete="off">
-    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="4-digit PIN" maxlength="4" autocomplete="off" style="margin-top:10px;">
     <div id="gateError" style="color:var(--down); font-size:13px; margin-top:8px; min-height:16px;"></div>
     <button id="startBtn">Start rolling</button>
   </div>
@@ -260,7 +258,6 @@
   const signInPanel = document.getElementById('gate');
   const gameScreen = document.getElementById('game');
   const usernameInput = document.getElementById('usernameInput');
-  const pinInput = document.getElementById('pinInput');
   const gateError = document.getElementById('gateError');
   const startBtn = document.getElementById('startBtn');
   const playerName = document.getElementById('whoami');
@@ -293,9 +290,21 @@
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
   currentUser = auth.currentUser;
-  const functions = firebase.app().functions('asia-southeast1');
   const database = firebase.database();
   const leaderboard = database.ref('publicLeaderboard');
+
+  function playerPath(uid) {
+    return leaderboard.child(uid);
+  }
+
+  async function loadPlayer(uid) {
+    const snapshot = await playerPath(uid).once('value');
+    return snapshot.val();
+  }
+
+  async function savePlayer(uid, name, value) {
+    await playerPath(uid).set({ name, score: value });
+  }
 
   function renderLeaderboard(players) {
     const entries = Object.values(players || {}).sort((first, second) => second.score - first.score);
@@ -338,17 +347,20 @@
     if (now - lastRollAt < ROLL_DELAY) return;
     lastRollAt = now;
 
-    rollButton.disabled = true;
-    functions.httpsCallable('roll')({})
-      .then((response) => {
-        const result = response.data;
-        animateRoll(result.score, result.direction);
-      })
-      .catch((error) => {
-        console.error('Could not roll:', error);
-        cooldownMessage.textContent = error.message || 'Could not roll. Try again.';
-        rollButton.disabled = false;
-      });
+    let newScore;
+    let direction;
+    if (!hasStartedRolling) {
+      newScore = randomInteger(0, SCORE_LIMIT);
+      direction = 'up';
+      hasStartedRolling = true;
+    } else if (Math.random() < 0.5) {
+      newScore = randomInteger(0, score);
+      direction = newScore < score ? 'down' : (newScore > score ? 'up' : null);
+    } else {
+      newScore = randomInteger(Math.min(score + 1, SCORE_LIMIT), SCORE_LIMIT);
+      direction = 'up';
+    }
+    animateRoll(newScore, direction);
   }
 
   function animateRoll(finalScore, direction) {
@@ -415,14 +427,21 @@
     }, 100);
   }
 
-  async function startGame(name, pin) {
+  async function startGame(name) {
     if (!currentUser) {
       throw new Error('Authentication is not ready.');
     }
 
-    const response = await functions.httpsCallable('legacyLogin')({ name, pin });
     const key = currentUser.uid;
-    score = response.data.score;
+    const existing = await loadPlayer(key);
+    if (existing) {
+      score = Number(existing.score) || 0;
+      hasStartedRolling = true;
+    } else {
+      score = 0;
+      hasStartedRolling = false;
+      await savePlayer(key, name, score);
+    }
     hasStartedRolling = true;
 
     username = name;
@@ -435,17 +454,11 @@
 
   startBtn.addEventListener('click', async () => {
     const name = usernameInput.value.trim();
-    const pin = pinInput.value.trim();
     gateError.textContent = '';
 
     if (!name) {
       gateError.textContent = 'Enter a name.';
       usernameInput.focus();
-      return;
-    }
-    if (!/^[0-9]{4}$/.test(pin)) {
-      gateError.textContent = 'PIN must be exactly 4 digits.';
-      pinInput.focus();
       return;
     }
     startBtn.disabled = true;
@@ -454,7 +467,7 @@
         const credential = await auth.signInAnonymously();
         currentUser = credential.user;
       }
-      await startGame(name, pin);
+      await startGame(name);
     } catch (error) {
       console.error('Could not start game:', error);
       gateError.textContent = 'Could not connect securely. Try again.';
@@ -463,9 +476,6 @@
   });
 
   usernameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') pinInput.focus();
-  });
-  pinInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') startBtn.click();
   });
 
