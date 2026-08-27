@@ -219,9 +219,6 @@
   }
 
 </style>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -271,34 +268,13 @@
   const ROLL_DELAY = 1000;
 
   let username = null;
-  let userKey = null;
-  let score = 0;
-  let hasStartedRolling = false;
-  let lastRollAt = 0;
-  let cooldownTimer = null;
-  let currentUser = null;
   const API_URL = 'https://roll-to-infinity.ar-project.workers.dev';
-  let playerToken = localStorage.getItem('rollPlayerToken');
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyCHe8hLsysRCoCXrtkDRE7OBnk0Zl5_Kbs",
-    authDomain: "roll-to-infinity-b8cf2.firebaseapp.com",
-    databaseURL: "https://roll-to-infinity-b8cf2-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "roll-to-infinity-b8cf2",
-    storageBucket: "roll-to-infinity-b8cf2.firebasestorage.app",
-    messagingSenderId: "828741072865",
-    appId: "1:828741072865:web:1657457e62667f028404a0"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  currentUser = auth.currentUser;
-  const database = firebase.database();
-  const leaderboard = database.ref('publicLeaderboard');
 
   async function api(path, options = {}) {
     const response = await fetch(API_URL + path, {
       ...options,
-      headers: { 'Content-Type': 'application/json', ...(playerToken ? { 'x-player-token': playerToken } : {}), ...(options.headers || {}) }
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Request failed.');
@@ -308,28 +284,6 @@
   async function loadLeaderboard() {
     const players = await api('/leaderboard');
     renderLeaderboard(Object.fromEntries(players.map((player) => [player.name, player])));
-  }
-
-  function playerPath(uid) {
-    return leaderboard.child(uid);
-  }
-
-  function namePath(name) {
-    return database.ref('nameClaims').child(encodeURIComponent(name.toLowerCase()));
-  }
-
-  async function loadPlayer(uid) {
-    const snapshot = await playerPath(uid).once('value');
-    return snapshot.val();
-  }
-
-  async function savePlayer(uid, name, value) {
-    await playerPath(uid).set({ name, score: value });
-  }
-
-  async function claimName(name, uid) {
-    const result = await namePath(name).transaction((owner) => owner || uid);
-    return result.committed && result.snapshot.val() === uid;
   }
 
   function renderLeaderboard(players) {
@@ -370,10 +324,15 @@
     const now = Date.now();
     if (now - lastRollAt < ROLL_DELAY) return;
     lastRollAt = now;
+    rollButton.disabled = true;
     api('/roll', { method: 'POST', body: '{}' })
       .then((result) => animateRoll(result.score, result.direction))
       .then(loadLeaderboard)
-      .catch((error) => { cooldownMessage.textContent = error.message; rollButton.disabled = false; });
+      .catch((error) => {
+        cooldownMessage.textContent = error.message;
+        rollButton.disabled = false;
+        lastRollAt = 0;
+      });
   }
 
   function animateRoll(finalScore, direction) {
@@ -441,9 +400,16 @@
   }
 
   async function startGame(name) {
-    const result = await api('/register', { method: 'POST', body: JSON.stringify({ name }) });
-    playerToken = result.token;
-    localStorage.setItem('rollPlayerToken', playerToken);
+    let result;
+    try {
+      result = await api('/me');
+      if (result.name.toLowerCase() !== name.toLowerCase()) {
+        throw new Error('This browser is already registered with another username.');
+      }
+    } catch (error) {
+      if (error.message === 'This browser is already registered with another username.') throw error;
+      result = await api('/register', { method: 'POST', body: JSON.stringify({ name }) });
+    }
     username = result.name;
     score = result.score;
     hasStartedRolling = true;
