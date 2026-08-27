@@ -220,6 +220,7 @@
 
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
@@ -228,9 +229,8 @@
 
   <div class="gate" id="gate">
     <h1>Roll to Infinity</h1>
-    <p>Each roll can send your score down to earth or way past a billion. Choose a name, enter a PIN, and see where luck takes you.</p>
+    <p>Each roll can send your score down to earth or way past a billion. Choose a name and see where luck takes you.</p>
     <input id="usernameInput" type="text" placeholder="Your name" maxlength="20" autocomplete="off">
-    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="4-digit PIN" maxlength="4" autocomplete="off" style="margin-top:10px;">
     <div id="gateError" style="color:var(--down); font-size:13px; margin-top:8px; min-height:16px;"></div>
     <button id="startBtn">Start rolling</button>
   </div>
@@ -258,7 +258,6 @@
   const signInPanel = document.getElementById('gate');
   const gameScreen = document.getElementById('game');
   const usernameInput = document.getElementById('usernameInput');
-  const pinInput = document.getElementById('pinInput');
   const gateError = document.getElementById('gateError');
   const startBtn = document.getElementById('startBtn');
   const playerName = document.getElementById('whoami');
@@ -277,6 +276,7 @@
   let hasStartedRolling = false;
   let lastRollAt = 0;
   let cooldownTimer = null;
+  let currentUser = null;
 
   const firebaseConfig = {
     apiKey: "AIzaSyCHe8hLsysRCoCXrtkDRE7OBnk0Zl5_Kbs",
@@ -288,12 +288,10 @@
     appId: "1:828741072865:web:1657457e62667f028404a0"
   };
   firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  currentUser = auth.currentUser;
   const database = firebase.database();
-  const leaderboard = database.ref('leaderboard');
-
-  function makeFirebaseKey(name) {
-    return name.replace(/[.#$\[\]\/]/g, '_');
-  }
+  const leaderboard = database.ref('publicLeaderboard');
 
   async function findPlayer(key) {
     try {
@@ -304,8 +302,8 @@
     }
   }
 
-  async function addPlayer(key, name, pin) {
-    await leaderboard.child(key).set({ name, score: 0, pin });
+  async function addPlayer(key, name) {
+    await leaderboard.child(key).set({ name, score: 0 });
   }
 
   async function saveScore(name, value) {
@@ -445,23 +443,19 @@
     }, 100);
   }
 
-  function isValidPin(pin) {
-    return /^[0-9]{4}$/.test(pin);
-  }
+  async function startGame(name) {
+    if (!currentUser) {
+      throw new Error('Authentication is not ready.');
+    }
 
-  async function startGame(name, pin) {
-    const key = makeFirebaseKey(name);
+    const key = currentUser.uid;
     const existing = await findPlayer(key);
 
     if (existing) {
-      if (existing.pin !== pin) {
-        gateError.textContent = 'Wrong PIN for that name. Try again.';
-        return;
-      }
       score = existing.score || 0;
       hasStartedRolling = true;
     } else {
-      await addPlayer(key, name, pin);
+      await addPlayer(key, name);
       score = 0;
       hasStartedRolling = false;
     }
@@ -476,7 +470,6 @@
 
   startBtn.addEventListener('click', async () => {
     const name = usernameInput.value.trim();
-    const pin = pinInput.value.trim();
     gateError.textContent = '';
 
     if (!name) {
@@ -484,21 +477,21 @@
       usernameInput.focus();
       return;
     }
-    if (!isValidPin(pin)) {
-      gateError.textContent = 'PIN must be exactly 4 digits.';
-      pinInput.focus();
-      return;
-    }
-
     startBtn.disabled = true;
-    await startGame(name, pin);
+    try {
+      if (!currentUser) {
+        const credential = await auth.signInAnonymously();
+        currentUser = credential.user;
+      }
+      await startGame(name);
+    } catch (error) {
+      console.error('Could not start game:', error);
+      gateError.textContent = 'Could not connect securely. Try again.';
+    }
     startBtn.disabled = false;
   });
 
   usernameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') pinInput.focus();
-  });
-  pinInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') startBtn.click();
   });
 
