@@ -26,6 +26,10 @@ You can roll once every second. Your score cannot go below zero, and the leaderb
 
 There is no framework or build step. The whole game is in `index.html`.
 
+The `functions` folder contains the trusted login and roll logic. The browser sends a name and PIN only to `legacyLogin`; it never receives or stores another player's PIN. The `roll` function calculates and saves scores on the server. Deploy with `firebase deploy --only functions,database`.
+
+To show the preserved old scores, run the one-time `migrateLegacyLeaderboard` function using its secret key. It copies only names and scores into `publicLeaderboard`. Remove that function after migration if you do not need it again.
+
 ## Database security
 
 The old `leaderboard` path is private and must not be made readable or writable by the web app. The current app uses `publicLeaderboard`, where each record is keyed by a Firebase anonymous-authentication UID and contains only `name` and `score`. Deploy [database.rules.json](database.rules.json) in Firebase Realtime Database before using the app.
