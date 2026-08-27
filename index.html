@@ -268,6 +268,10 @@
   const ROLL_DELAY = 1000;
 
   let username = null;
+  let score = 0;
+  let hasStartedRolling = false;
+  let lastRollAt = 0;
+  let cooldownTimer = null;
   const API_URL = 'https://roll-to-infinity.ar-project.workers.dev';
 
   async function api(path, options = {}) {
