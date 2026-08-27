@@ -26,6 +26,12 @@ You can roll once every second. Your score cannot go below zero, and the leaderb
 
 There is no framework or build step. The whole game is in `index.html`.
 
+## Database security
+
+The old `leaderboard` path is private and must not be made readable or writable by the web app. The current app uses `publicLeaderboard`, where each record is keyed by a Firebase anonymous-authentication UID and contains only `name` and `score`. Deploy [database.rules.json](database.rules.json) in Firebase Realtime Database before using the app.
+
+PINs must not be copied into `publicLeaderboard`: Realtime Database rules cannot hide a field from a public read. These rules prevent users from changing another user's record and reject negative or oversized scores. Because the game runs in the browser, a trusted server is still required to prevent a user from fabricating their own score.
+
 ## Run it yourself
 
 Download the project and open `index.html` in a browser. The leaderboard uses the Firebase project in the code. If you make your own copy and want your own leaderboard, replace the Firebase config with one from your own project.
