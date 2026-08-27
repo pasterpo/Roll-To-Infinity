@@ -55,6 +55,13 @@ async function hashToken(token) {
 
 function secureRandomInt(min, max) {
   const range = max - min + 1;
+  if (range > 0x100000000) {
+    const rangeBig = BigInt(range);
+    const limitBig = (1n << 64n) - ((1n << 64n) % rangeBig);
+    const values = new BigUint64Array(1);
+    do crypto.getRandomValues(values); while (values[0] >= limitBig);
+    return min + Number(values[0] % rangeBig);
+  }
   const limit = Math.floor(0x100000000 / range) * range;
   const values = new Uint32Array(1);
   do crypto.getRandomValues(values); while (values[0] >= limit);
