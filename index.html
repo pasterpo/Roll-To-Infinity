@@ -277,6 +277,8 @@
   let lastRollAt = 0;
   let cooldownTimer = null;
   let currentUser = null;
+  const API_URL = 'https://roll-to-infinity.ar-project.workers.dev';
+  let playerToken = localStorage.getItem('rollPlayerToken');
 
   const firebaseConfig = {
     apiKey: "AIzaSyCHe8hLsysRCoCXrtkDRE7OBnk0Zl5_Kbs",
@@ -292,6 +294,21 @@
   currentUser = auth.currentUser;
   const database = firebase.database();
   const leaderboard = database.ref('publicLeaderboard');
+
+  async function api(path, options = {}) {
+    const response = await fetch(API_URL + path, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...(playerToken ? { 'x-player-token': playerToken } : {}), ...(options.headers || {}) }
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Request failed.');
+    return data;
+  }
+
+  async function loadLeaderboard() {
+    const players = await api('/leaderboard');
+    renderLeaderboard(Object.fromEntries(players.map((player) => [player.name, player])));
+  }
 
   function playerPath(uid) {
     return leaderboard.child(uid);
@@ -333,9 +350,7 @@
     }).join('');
   }
 
-  leaderboard.on('value', (snapshot) => {
-    renderLeaderboard(snapshot.val());
-  });
+  loadLeaderboard().catch((error) => { gateError.textContent = error.message; });
 
   function escapeHtml(value) {
     const element = document.createElement('div');
@@ -355,21 +370,10 @@
     const now = Date.now();
     if (now - lastRollAt < ROLL_DELAY) return;
     lastRollAt = now;
-
-    let newScore;
-    let direction;
-    if (!hasStartedRolling) {
-      newScore = randomInteger(0, SCORE_LIMIT);
-      direction = 'up';
-      hasStartedRolling = true;
-    } else if (Math.random() < 0.5) {
-      newScore = randomInteger(0, score);
-      direction = newScore < score ? 'down' : (newScore > score ? 'up' : null);
-    } else {
-      newScore = randomInteger(Math.min(score + 1, SCORE_LIMIT), SCORE_LIMIT);
-      direction = 'up';
-    }
-    animateRoll(newScore, direction);
+    api('/roll', { method: 'POST', body: '{}' })
+      .then((result) => animateRoll(result.score, result.direction))
+      .then(loadLeaderboard)
+      .catch((error) => { cooldownMessage.textContent = error.message; rollButton.disabled = false; });
   }
 
   function animateRoll(finalScore, direction) {
@@ -410,9 +414,6 @@
       changeDisplay.className = 'delta-tag show';
     }
 
-    savePlayer(userKey, username, score).catch((error) => {
-      console.error('Could not save score:', error);
-    });
     startCooldownUI();
   }
 
@@ -440,31 +441,13 @@
   }
 
   async function startGame(name) {
-    if (!currentUser) {
-      throw new Error('Authentication is not ready.');
-    }
-
-    const key = currentUser.uid;
-    const existing = await loadPlayer(key);
-    if (existing) {
-      if (existing.name !== name) {
-        throw new Error('This browser is already registered with another username.');
-      }
-      score = Number(existing.score) || 0;
-      hasStartedRolling = true;
-    } else {
-      if (!await claimName(name, key)) {
-        throw new Error('Username already used.');
-      }
-      score = 0;
-      hasStartedRolling = false;
-      await savePlayer(key, name, score);
-    }
+    const result = await api('/register', { method: 'POST', body: JSON.stringify({ name }) });
+    playerToken = result.token;
+    localStorage.setItem('rollPlayerToken', playerToken);
+    username = result.name;
+    score = result.score;
     hasStartedRolling = true;
-
-    username = name;
-    userKey = key;
-    playerName.textContent = name;
+    playerName.textContent = username;
     scoreDisplay.textContent = formatNumber(score);
     signInPanel.style.display = 'none';
     gameScreen.classList.add('active');
@@ -481,10 +464,6 @@
     }
     startBtn.disabled = true;
     try {
-      if (!currentUser) {
-        const credential = await auth.signInAnonymously();
-        currentUser = credential.user;
-      }
       await startGame(name);
     } catch (error) {
       console.error('Could not start game:', error);

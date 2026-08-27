@@ -1,0 +1,8 @@
+name = "roll-to-infinity"
+main = "worker.js"
+compatibility_date = "2026-08-27"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "roll-to-infinity"
+database_id = "0af18e13-9e1f-477f-88c8-efb14357314a"

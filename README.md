@@ -26,9 +26,7 @@ You can roll once every second. Your score cannot go below zero, and the leaderb
 
 There is no framework or build step. The whole game is in `index.html`.
 
-The `functions` folder contains the trusted login and roll logic. The browser sends a name and PIN only to `legacyLogin`; it never receives or stores another player's PIN. The `roll` function calculates and saves scores on the server. Deploy with `firebase deploy --only functions,database`.
-
-To show the preserved old scores, run the one-time `migrateLegacyLeaderboard` function using its secret key. It copies only names and scores into `publicLeaderboard`. Remove that function after migration if you do not need it again.
+The live site uses the Cloudflare Worker in `worker.js` and its D1 database. The browser sends a name to register and asks the Worker to roll; it never sends a score. The Worker enforces unique usernames, rate limits rolls, and writes scores server-side. Firebase is retained only as a locked, unused legacy database.
 
 ## Database security
 
