@@ -401,6 +401,9 @@
       changeDisplay.className = 'delta-tag show';
     }
 
+    savePlayer(userKey, username, score).catch((error) => {
+      console.error('Could not save score:', error);
+    });
     startCooldownUI();
   }
 
