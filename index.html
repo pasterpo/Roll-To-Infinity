@@ -297,6 +297,10 @@
     return leaderboard.child(uid);
   }
 
+  function namePath(name) {
+    return database.ref('nameClaims').child(encodeURIComponent(name.toLowerCase()));
+  }
+
   async function loadPlayer(uid) {
     const snapshot = await playerPath(uid).once('value');
     return snapshot.val();
@@ -304,6 +308,11 @@
 
   async function savePlayer(uid, name, value) {
     await playerPath(uid).set({ name, score: value });
+  }
+
+  async function claimName(name, uid) {
+    const result = await namePath(name).transaction((owner) => owner || uid);
+    return result.committed && result.snapshot.val() === uid;
   }
 
   function renderLeaderboard(players) {
@@ -438,9 +447,15 @@
     const key = currentUser.uid;
     const existing = await loadPlayer(key);
     if (existing) {
+      if (existing.name !== name) {
+        throw new Error('This browser is already registered with another username.');
+      }
       score = Number(existing.score) || 0;
       hasStartedRolling = true;
     } else {
+      if (!await claimName(name, key)) {
+        throw new Error('Username already used.');
+      }
       score = 0;
       hasStartedRolling = false;
       await savePlayer(key, name, score);

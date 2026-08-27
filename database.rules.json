@@ -6,6 +6,13 @@
         ".write": "auth != null && auth.uid == $uid",
         ".validate": "newData.hasChildren(['name', 'score']) && !newData.hasChild('pin') && newData.child('name').isString() && newData.child('name').val().length <= 20 && newData.child('score').isNumber() && newData.child('score').val() >= 0 && newData.child('score').val() <= 1000000000000"
       }
+    },
+    "nameClaims": {
+      ".read": true,
+      "$name": {
+        ".write": "auth != null && !data.exists() && newData.val() == auth.uid",
+        ".validate": "newData.isString()"
+      }
     }
   }
 }
